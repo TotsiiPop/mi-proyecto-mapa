@@ -1,43 +1,117 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Mapa con Leaflet.js y KML</title>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <!-- Incluye la librería Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
-    
-    <!-- Incluye la librería Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-    
-    <!-- Incluye la librería para cargar KML -->
-    <script src="https://unpkg.com/leaflet-kml@1.2.0/leaflet-kml.js"></script>
+<?php
+// Incluir el archivo de conexión
+include('conexion.php');
 
-    <style>
-        #map {
-            height: 100vh;
-        }
-    </style>
+// Obtener todos los empleados para mostrarlos en la tabla inicial
+$sql = "SELECT * FROM Empleados";
+$result = $conn->query($sql);
+?>
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Empleados</title>
+    <link rel="stylesheet" href="estilos.css">
 </head>
 <body>
-    <div id="map"></div>
+    <div class="container">
+        <h1>Gestión de Empleados</h1>
 
-    <script>
-        // Crear el mapa centrado en una ubicación inicial
-        var map = L.map('map').setView([19.432608, -99.133209], 13);  // Coordenadas de Ciudad de México
+        <!-- Formulario para consultas personalizadas -->
+        <h2>Realizar consulta personalizada</h2>
+        <form method="POST" action="">
+            <label for="consulta">Escribe tu consulta SQL:</label><br>
+            <textarea name="consulta" id="consulta" rows="4" cols="50" required></textarea><br>
+            <input type="submit" value="Ejecutar consulta">
+        </form>
 
-        // Añadir el mapa base de OpenStreetMap
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
+        <!-- Tabla para mostrar los empleados -->
+        <h2>Lista de Empleados</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nombre</th>
+                    <th>Apellido</th>
+                    <th>Fecha de Nacimiento</th>
+                    <th>Fecha de Contratación</th>
+                    <th>Posición</th>
+                    <th>Departamento</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                // Mostrar cada empleado en una fila
+                if ($result->num_rows > 0) {
+                    while ($row = $result->fetch_assoc()) {
+                        echo "<tr>
+                                <td>{$row['EmpleadoID']}</td>
+                                <td>{$row['Nombre']}</td>
+                                <td>{$row['Apellido']}</td>
+                                <td>{$row['FechaNacimiento']}</td>
+                                <td>{$row['FechaContratacion']}</td>
+                                <td>{$row['Posicion']}</td>
+                                <td>{$row['DepartamentoID']}</td>
+                              </tr>";
+                    }
+                } else {
+                    echo "<tr><td colspan='7'>No se encontraron empleados</td></tr>";
+                }
+                ?>
+            </tbody>
+        </table>
 
-        // Cargar el archivo KML desde un enlace público
-        var kmlLayer = new L.KML("https://drive.google.com/file/d/1nrV19g6W5bl4NHPuEm-dWTfVRinMcLyN/view?usp=sharing", {async: true});
-        kmlLayer.on("loaded", function(e) { 
-            map.fitBounds(e.target.getBounds()); 
-        });
-        map.addLayer(kmlLayer);
-    </script>
+        <!-- Mostrar resultado de la consulta personalizada -->
+        <?php
+        if ($_SERVER["REQUEST_METHOD"] == "POST") {
+            $consulta = $_POST['consulta'];
+
+            // Validar que no sea una consulta peligrosa
+            $prohibido = ['DROP', 'DELETE', 'TRUNCATE'];
+            foreach ($prohibido as $palabra) {
+                if (stripos($consulta, $palabra) !== false) {
+                    echo "<p style='color: red;'>Consulta no permitida: No puedes usar comandos de eliminación o alteración.</p>";
+                    exit;
+                }
+            }
+
+            // Ejecutar la consulta y mostrar los resultados
+            $resultadoConsulta = $conn->query($consulta);
+
+            if ($resultadoConsulta) {
+                if ($resultadoConsulta->num_rows > 0) {
+                    echo "<h2>Resultado de la consulta:</h2>";
+                    echo "<table><thead><tr>";
+
+                    // Mostrar encabezados de la consulta
+                    $columns = $resultadoConsulta->fetch_fields();
+                    foreach ($columns as $column) {
+                        echo "<th>{$column->name}</th>";
+                    }
+                    echo "</tr></thead><tbody>";
+
+                    // Mostrar datos de la consulta
+                    while ($fila = $resultadoConsulta->fetch_assoc()) {
+                        echo "<tr>";
+                        foreach ($fila as $valor) {
+                            echo "<td>{$valor}</td>";
+                        }
+                        echo "</tr>";
+                    }
+                    echo "</tbody></table>";
+                } else {
+                    echo "<p>No se encontraron resultados para la consulta.</p>";
+                }
+            } else {
+                echo "<p style='color: red;'>Error en la consulta: " . $conn->error . "</p>";
+            }
+        }
+
+        // Cerrar la conexión
+        $conn->close();
+        ?>
+    </div>
 </body>
 </html>
